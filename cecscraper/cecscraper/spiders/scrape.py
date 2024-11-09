@@ -23,40 +23,36 @@ class CeconlineSpider(CrawlSpider):
         paragraphs = response.xpath('//p/text()').getall()
         cleaned_paragraphs = [self.clean_text(p) for p in paragraphs]
 
-        # Extract contact details (address, phone, email)
-        contact_details = {
-            'address': response.xpath('//li[contains(@class, "contact-details")]/text()').get(),
-        }
+        # Extract contact details (here only address bruh)
+        address = response.xpath('//li[contains(@class, "contact-details__item_type_address")]/text()').get()
+        phone = response.xpath('//li[contains(@class, "contact-details__item_type_tel")]/a/text()').get()
+        email = response.xpath('//li[contains(@class, "contact-details__item_type_email")]/a/text()').get()
 
-        # Extract faculty details if present
+        # stm-contact-details__itemstm-contact-details__item stm-contact-details__item_type_fax
+        contact_details = {}
+        if address:
+            contact_details['address'] = self.clean_text(address)
+        if phone:
+            contact_details['phone'] = self.clean_text(phone)
+        if email:
+            contact_details['email'] = self.clean_text(email)
+
+        # Extract faculty details if present along wuth the HOD
         faculty,hod = self.parse_faculty_table(response)
 
         # Yield structured data as JSON
-        if hod and faculty:
-            yield {
-            'url': response.url,
-            'title': cleaned_title,
-            'about': cleaned_paragraphs,
-            'contact_details': contact_details,
-            'faculty': faculty,
-            'HOD': hod
-        }
-        else:
-            if faculty:
-                yield {
-            'url': response.url,
-            'title': cleaned_title,
-            'about': cleaned_paragraphs,
-            'contact_details': contact_details,
-            'faculty': faculty,
-            }
-            else:
-                yield {
-            'url': response.url,
-            'title': cleaned_title,
-            'about': cleaned_paragraphs,
-            'contact_details': contact_details,
-            }
+        data = {}
+        if title:
+            data['title'] = cleaned_title
+        if faculty:
+            data['faculty'] = faculty
+        if hod:
+            data['hod'] = hod
+        if paragraphs:
+            data['about'] = cleaned_paragraphs
+        if contact_details:
+            data['contact_details'] = contact_details
+        yield data
 
     def parse_faculty_table(self, response):
         # Locate the faculty table based on the headers
@@ -83,12 +79,15 @@ class CeconlineSpider(CrawlSpider):
         # Skip the header row and parse each faculty row
         rows = faculty_table.xpath('.//tr[position()>1]')
         for row in rows:
-            name = row.xpath('td[2]//text()').get()
-            designation = row.xpath('td[3]//text()').get()
-            faculty_data.append({
-                "name": self.clean_text(name),
-                "designation": self.clean_text(designation)
-            })
+            name = self.clean_text(row.xpath('td[2]//text()').get())
+            designation = self.clean(row.xpath('td[3]//text()').get())
+
+            faculty_data_entry = {}
+            if name:
+                faculty_data_entry['name'] = name
+            if designation:
+                faculty_data_entry['designation'] = designation
+            faculty_data.append(faculty_data_entry)
 
         return faculty_data,hod
 
